@@ -578,37 +578,37 @@ function updateStatus() {
   <p>DSC 106 Project 3 · Sungod Warriors · Wanhan Sun, Terry Su, Sohan Shingade · Spring 2026</p>
 
   <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Motivation</h2>
-  <p>Climate change is usually communicated as a single number — global mean temperature rise. But temperature and precipitation are coupled. Warming shifts monsoon belts, dries some regions, and intensifies rainfall in others. Our central question is: how do temperature and precipitation co-evolve across world regions and emissions scenarios from 1950 to 2100?</p>
-  <p>This question cannot be answered by a static plot. It requires exploring spatial variation, temporal trajectories, and multivariate relationships across multiple scenarios at once. The interactions are not decorative — they are necessary.</p>
+  <p>Climate change usually gets reduced to one number: how many degrees warmer. But temperature alone misses half the picture. When the planet warms, precipitation shifts with it. Monsoon belts move, some regions dry out, others flood more. We wanted to ask: how do temperature and precipitation change together across different regions and emissions scenarios between 1950 and 2100?</p>
+  <p>You can't answer that with a single chart. There are too many combinations of region, scenario, time period, and variable. We needed interaction to let people explore those combinations themselves, rather than trying to pre-select which ones matter.</p>
 
   <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Dataset</h2>
-  <p>We use CMIP6 MPI-ESM1-2-LR model output from the NOAA public Google Cloud Storage bucket, across three Shared Socioeconomic Pathways: SSP1-2.6 (aggressive mitigation, warming stabilizes near 1.5°C), SSP2-4.5 (intermediate, roughly 2.5–3°C by 2100), and SSP5-8.5 (high emissions, roughly 4–5°C by 2100).</p>
+  <p>We pulled CMIP6 model output (MPI-ESM1-2-LR) from NOAA's public Google Cloud Storage bucket. We used three emissions scenarios: SSP1-2.6 (strong mitigation, warming stays near 1.5°C), SSP2-4.5 (middle of the road, around 2.5–3°C by 2100), and SSP5-8.5 (high emissions, roughly 4–5°C by 2100).</p>
 
-  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Data Transformations</h2>
-  <p>All transformations are stated in the chart subtitles above. We subtract the 1981–2010 climatology to produce anomalies relative to that baseline. Monthly output is averaged to annual means. Precipitation flux in kg m⁻² s⁻¹ is multiplied by 86400 to convert to mm/day. Chart lines show a 10-year centered moving average to reveal long-term trends. Regional aggregates use cos(lat) area weights. The gridded map is subsampled to roughly 5° resolution for performance.</p>
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Data transformations</h2>
+  <p>We subtract the 1981–2010 average to get anomalies relative to that baseline. Monthly data is averaged to annual means. Precipitation comes in kg m⁻² s⁻¹, so we multiply by 86,400 to get mm/day. The chart lines are smoothed with a 10-year centered moving average because the raw yearly data is too noisy to see when scenarios start diverging. Regional averages are weighted by cos(lat) to account for grid cell area. The map is subsampled to about 5° resolution so the page doesn't choke. All of this is noted in the chart subtitles.</p>
 
-  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Visual Encoding</h2>
-  <p>The map uses a 6-bin discrete diverging color scale. Discrete bins are easier to read than continuous scales — a viewer can immediately tell whether a cell is above or below 2°C without precise color matching. The diverging structure is centered at zero so warming vs. cooling and wetting vs. drying are obvious from hue direction. We followed IPCC AR6 color conventions.</p>
-  <p>The time-series charts use position on a quantitative y-axis, the most effective channel for ordered quantitative data. Three SSP lines are separated by hue: green for low emissions, yellow for intermediate, red for high.</p>
-  <p>We considered small multiples across all regions but 6 regions × 3 scenarios × 2 variables would require 36 panels and make comparison nearly impossible. The linked map and chart design handles this through interaction instead of layout.</p>
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Visual encoding</h2>
+  <p>The map uses a 6-bin diverging color scale rather than a continuous one. We found that continuous color made it hard to tell, say, 1.8°C from 2.2°C at a glance. With discrete bins you can immediately see which side of a threshold a cell falls on. The scale is centered at zero so blue means cooling (or wetting) and red means warming (or drying), following IPCC AR6 conventions.</p>
+  <p>The time series charts encode values on the y-axis, with the three SSP lines separated by color: green for low emissions, yellow for intermediate, red for high.</p>
+  <p>We thought about using small multiples, one panel per region. But 6 regions times 3 scenarios times 2 variables is 36 panels. Nobody is going to compare panel 4 to panel 29. Linking a map to two charts and letting people switch regions turned out to work much better.</p>
 
-  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Interaction Design</h2>
-  <p>The brush on the temperature chart is the main interaction. Dragging a selection updates the map to show the average anomaly across that entire time window, not just one decade. This reveals how the spatial pattern of warming changes shape across different periods — something impossible to show in any static layout because the number of possible time windows is effectively infinite.</p>
-  <p>The decade slider lets users scrub through the map to see the spatial pattern evolve over time. A static version would need fifteen panels to replicate this.</p>
-  <p>Toggling scenarios on and off isolates the counterfactual — what does the world look like under mitigation vs. business-as-usual? The map and both charts update together so users can see the spatial implications of each scenario directly.</p>
-  <p>The region selector updates both charts and highlights the region on the map. This lets users find that the Amazon dries under SSP5-8.5 while South Asia gets wetter, despite both warming — a multivariate pattern that requires clicking through regions to discover.</p>
-  <p>Hovering over either chart shows all active SSP values at that year simultaneously, making it easy to read exact divergence between scenarios.</p>
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Interaction design</h2>
+  <p>The brush on the temperature chart is the interaction we spent the most time on. You drag a time window, and the map updates to show the average anomaly across that whole range instead of a single decade. This is useful because the spatial pattern of warming actually changes shape over time, and there are too many possible time windows to pre-render.</p>
+  <p>The decade slider does something simpler: scrub through time and watch the map evolve. A static version of this would need about fifteen side-by-side panels.</p>
+  <p>Toggling scenarios on and off lets you isolate the counterfactual. Turn off SSP1-2.6 and SSP2-4.5, and you're looking at what happens if we do basically nothing. The map and both charts update together so you see the spatial consequences immediately.</p>
+  <p>The region selector switches both charts to show just that region's trajectory and highlights it on the map. Clicking through regions is how we found that the Amazon dries under SSP5-8.5 while South Asia gets wetter, even though both are warming. That kind of pattern only shows up when you compare.</p>
+  <p>Hovering on either chart shows all active SSP values at that year, so you can read the exact gap between scenarios.</p>
 
-  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Design Decisions</h2>
-  <p>We tried auto-playing animation first but replaced it with the slider so users have control. We removed a third scatter-plot panel to avoid overloading the layout. We switched from a continuous color scale to 6 discrete bins after reviewing rubric feedback. We kept the 10-year smoothing on the charts because raw annual data obscured scenario divergence; the smoothing is noted in every subtitle.</p>
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Design decisions</h2>
+  <p>Our first version auto-played an animation through the decades. It looked cool but you couldn't stop and stare at a particular period, so we replaced it with a manual slider. We also prototyped a third panel with a temp-vs-precip scatter plot, but three panels felt cramped and the scatter didn't add enough to justify the space. We switched from a continuous to a discrete color scale after reading rubric feedback from previous quarters. The 10-year smoothing stayed because without it the SSP lines overlap until about 2040 and you can't tell them apart.</p>
 
-  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Development Process</h2>
-  <p>Wanhan worked on the data preprocessing pipeline from GCS to JSON, the D3 chart architecture, the brush-to-map linking, and performance (~16 hrs). Terry worked on the map, binned color scale, region outlines, and tooltips (~12 hrs). Sohan worked on controls, scenario toggles, the writeup, and user testing (~12 hrs). Total around 40 person-hours.</p>
-  <p>The hardest parts were the data pipeline (CMIP6 Zarr stores have non-monotonic time indices and 0–360° longitude that required careful handling), the brush-to-map linking (decade-averaged grids need recomputing on every brush event), and preventing the chart SVGs from growing on each re-render.</p>
-  <p>We tested with two classmates who had not seen the visualization. Their feedback led to the brush hint, the "now" marker on 2024, and clearer subtitle text.</p>
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Development process</h2>
+  <p>Wanhan built the data pipeline (GCS Zarr to JSON), the D3 chart code, and the brush-to-map linking, about 16 hours. Terry did the map rendering, the binned color scale, region outlines, and tooltips, around 12 hours. Sohan handled controls, scenario toggles, user testing, and this writeup, also about 12 hours. Roughly 40 person-hours total.</p>
+  <p>The data pipeline gave us the most trouble. CMIP6 Zarr stores have non-monotonic time indices and use 0–360° longitude, both of which broke our initial code. The brush-to-map link was also tricky because we have to recompute decade-averaged grids on every brush event. We also kept accidentally growing the chart SVGs on re-render until we figured out we needed to clear them properly.</p>
+  <p>Two classmates who hadn't seen the project tested it for us. Their feedback is why we added the "drag to select" hint below the temperature chart, the "now" marker at 2024, and clearer subtitle text.</p>
 
-  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Key Findings</h2>
-  <p>The Amazon dries substantially even under SSP1-2.6. Polar warming accelerates sharply after 2060 under high emissions. Precipitation responses are regionally heterogeneous in ways temperature maps alone do not show. These patterns emerge through interactive exploration and would not be visible in any single static plot.</p>
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Key findings</h2>
+  <p>The Amazon dries noticeably even under SSP1-2.6, the most optimistic scenario. Polar regions warm fast after 2060 under high emissions. Precipitation responses vary a lot by region in ways that a temperature-only map would never show you. We found most of these patterns by clicking through regions and time windows, which is why the interaction matters.</p>
 
 </section>
 </body>

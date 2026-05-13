@@ -54,9 +54,10 @@
     #year-display { font-family: monospace; color: #fff; font-size: 11px; }
 
     #main {
-      display: flex;
-      height: calc(100vh - 90px);
-    }
+  display: flex;
+  height: calc(100vh - 90px);
+  min-height: 0;
+}
 
     #map-panel {
       flex: 1;
@@ -90,12 +91,13 @@
     .lswatch { width: 24px; height: 8px; }
     .ltick { font-size: 8px; color: #444; font-family: monospace; }
 
-    #chart-panel {
-      width: 380px;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
+   #chart-panel {
+  width: 33vw;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
     .chart-box {
       flex: 1;
       min-height: 0;

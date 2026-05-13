@@ -300,7 +300,7 @@ function renderMap(gd) {
   if (!ssps.length) return;
   const el = document.getElementById('map-svg');
   const W = el.clientWidth || 700, H = el.clientHeight || 400;
-  proj.scale(W/6.3).translate([W/2, H/2]);
+  proj.scale(Math.min(W/6.3, H/3.2)).translate([W/2, H/2]);
 
   let decKeys;
   if (state.brushYears) {
@@ -328,9 +328,10 @@ function renderMap(gd) {
   const colors = state.mapVar === 'tas' ? TAS_COLORS : PR_COLORS;
 
   const p0 = proj([lons[0], lats[0]]);
-  const p1 = proj([lons[1] ?? lons[0]+5, lats[1] ?? lats[0]+5]);
-  const cw = p0&&p1 ? Math.abs(p1[0]-p0[0]) : 7;
-  const ch = p0&&p1 ? Math.abs(p1[1]-p0[1]) : 7;
+const p1 = proj([lons[1] ?? lons[0]+5, lats[0]]);
+const p2 = proj([lons[0], lats[1] ?? lats[0]+5]);
+const cw = p0&&p1 ? Math.abs(p1[0]-p0[0]) : 7;
+const ch = p0&&p2 ? Math.abs(p2[1]-p0[1]) : 7;
 
   const cells = [];
   lats.forEach((lat,i) => lons.forEach((lon,j) => {

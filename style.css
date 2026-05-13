@@ -1,0 +1,49 @@
+body {
+  font-family: sans-serif;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #f9f9f9;
+}
+
+header {
+  margin-bottom: 20px;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 14px;
+}
+
+#controls {
+  margin-bottom: 16px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+#chart {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+  pointer-events: none;  /* so it doesn't block mouse events */
+  opacity: 0;
+}
+
+#writeup {
+  margin-top: 40px;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+}

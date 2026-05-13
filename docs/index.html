@@ -1,732 +1,588 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Climate Co-evolution | Sungod Warriors</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Climate Co-evolution | Sungod Warriors</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-<!-- D3 v7 — only allowed plotting lib -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<!-- topojson for world map -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+    body {
+      background: #000;
+      color: #ccc;
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+      height: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
 
-<style>
-/* ── Reset & tokens ────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    header {
+      padding: 8px 16px;
+      border-bottom: 1px solid #222;
+    }
+    header h1 { font-size: 15px; font-weight: normal; color: #fff; display: inline; }
+    header span { color: #444; font-size: 11px; margin-left: 12px; }
 
-:root {
-  --bg:       #080c14;
-  --panel:    #0e1420;
-  --border:   #1e2535;
-  --text:     #c8d4e8;
-  --muted:    #5a6a84;
-  --accent:   #38bdf8;
+    #controls {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      padding: 6px 16px;
+      border-bottom: 1px solid #222;
+      flex-wrap: wrap;
+    }
+    #controls label { color: #666; font-size: 11px; }
+    #controls button {
+      background: #000;
+      border: 1px solid #333;
+      color: #666;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: monospace;
+    }
+    #controls button.active { border-color: #fff; color: #fff; }
+    #controls button[data-ssp="ssp126"].active { border-color: #4ade80; color: #4ade80; }
+    #controls button[data-ssp="ssp245"].active { border-color: #facc15; color: #facc15; }
+    #controls button[data-ssp="ssp585"].active { border-color: #f87171; color: #f87171; }
+    #controls input[type=range] { accent-color: #fff; width: 140px; }
+    #controls select { background: #000; border: 1px solid #333; color: #ccc; padding: 2px 4px; font-size: 11px; }
+    #year-display { font-family: monospace; color: #fff; font-size: 11px; }
 
-  --ssp126:   #34d399;   /* green  */
-  --ssp245:   #fbbf24;   /* amber  */
-  --ssp585:   #f87171;   /* red    */
+    #main {
+      display: flex;
+      height: calc(100vh - 90px);
+    }
 
-  --warm:     #ef4444;
-  --cool:     #3b82f6;
-  --wet:      #06b6d4;
-  --dry:      #f59e0b;
+    #map-panel {
+      flex: 1;
+      position: relative;
+      border-right: 1px solid #222;
+      min-height: 0;
+    }
+    #map-panel p {
+      position: absolute;
+      top: 6px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 9px;
+      color: #444;
+      pointer-events: none;
+      z-index: 2;
+    }
+    #map-svg { width: 100%; height: 100%; display: block; }
 
-  --font-display: 'Georgia', serif;
-  --font-mono:    'Courier New', monospace;
-  --font-body:    system-ui, sans-serif;
-}
+    #legend {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+      text-align: center;
+    }
+    #legend p { font-size: 9px; color: #444; position: static; }
+    #legend-bins { display: flex; gap: 1px; margin-top: 2px; }
+    .lbin { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .lswatch { width: 24px; height: 8px; }
+    .ltick { font-size: 8px; color: #444; font-family: monospace; }
 
-html, body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 13px;
-  height: 100%;
-  overflow-x: hidden;
-}
+    #chart-panel {
+      width: 380px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .chart-box {
+      flex: 1;
+      min-height: 0;
+      padding: 8px 12px 4px;
+      border-bottom: 1px solid #222;
+      display: flex;
+      flex-direction: column;
+    }
+    .chart-box:last-child { border-bottom: none; }
+    .chart-box h3 { font-size: 10px; font-weight: normal; color: #666; text-transform: uppercase; }
+    .chart-box p  { font-size: 8px; color: #333; margin-bottom: 3px; }
+    .chart-box small { font-size: 8px; color: #2a2a2a; font-style: italic; }
+    .chart-box svg { flex: 1; min-height: 0; display: block; width: 100%; overflow: visible; }
 
-/* ── Layout ─────────────────────────────────────────────────────────────────── */
-header {
-  padding: 18px 28px 14px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: baseline;
-  gap: 18px;
-}
-header h1 {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: normal;
-  color: #e8f0fc;
-  letter-spacing: 0.02em;
-}
-header .sub {
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
+    #status {
+      padding: 4px 16px;
+      border-top: 1px solid #222;
+      font-size: 9px;
+      color: #444;
+      display: flex;
+      gap: 16px;
+    }
+    #status span { color: #888; font-family: monospace; }
+    #status a { margin-left: auto; color: #666; font-size: 9px; }
 
-.app {
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  grid-template-rows: auto 1fr auto;
-  height: calc(100vh - 58px);
-  gap: 0;
-}
+    #tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: #000;
+      border: 1px solid #333;
+      padding: 6px 10px;
+      font-size: 10px;
+      color: #ccc;
+      opacity: 0;
+      transition: opacity .1s;
+      z-index: 100;
+      min-width: 150px;
+    }
+    #tooltip b { display: block; color: #fff; margin-bottom: 4px; font-size: 10px; }
+    .tt-row { display: flex; justify-content: space-between; gap: 10px; margin: 1px 0; }
+    .tt-val { font-family: monospace; }
 
-/* ── Controls bar ───────────────────────────────────────────────────────────── */
-.controls {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 10px 24px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-
-.ctrl-group { display: flex; align-items: center; gap: 8px; }
-.ctrl-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; }
-
-/* Scenario toggles */
-.ssp-btn {
-  padding: 4px 12px;
-  border-radius: 3px;
-  border: 1px solid transparent;
-  background: #141c2c;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  letter-spacing: 0.03em;
-  transition: all 0.15s;
-}
-.ssp-btn.active { color: #fff; }
-.ssp-btn[data-ssp="ssp126"].active { border-color: var(--ssp126); color: var(--ssp126); }
-.ssp-btn[data-ssp="ssp245"].active { border-color: var(--ssp245); color: var(--ssp245); }
-.ssp-btn[data-ssp="ssp585"].active { border-color: var(--ssp585); color: var(--ssp585); }
-
-/* Variable toggle */
-.var-btn {
-  padding: 4px 12px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  background: #141c2c;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 11px;
-  transition: all 0.15s;
-}
-.var-btn.active { border-color: var(--accent); color: var(--accent); }
-
-/* Time slider */
-#year-slider {
-  width: 220px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-#year-display {
-  font-family: var(--font-mono);
-  color: var(--accent);
-  font-size: 13px;
-  min-width: 36px;
-}
-
-/* Region selector */
-#region-select {
-  background: #141c2c;
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 4px 8px;
-  border-radius: 3px;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-/* ── Map panel ──────────────────────────────────────────────────────────────── */
-.map-panel {
-  position: relative;
-  background: var(--panel);
-  border-right: 1px solid var(--border);
-  overflow: hidden;
-}
-
-#map-title {
-  position: absolute;
-  top: 12px; left: 16px;
-  font-size: 11px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  pointer-events: none;
-  z-index: 2;
-}
-
-#map-svg { width: 100%; height: 100%; display: block; }
-
-/* Map colorbar legend */
-#map-legend {
-  position: absolute;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  pointer-events: none;
-}
-#legend-bar {
-  width: 200px;
-  height: 10px;
-  border-radius: 2px;
-}
-.legend-labels {
-  display: flex;
-  justify-content: space-between;
-  width: 200px;
-  font-size: 10px;
-  color: var(--muted);
-}
-
-/* ── Right panel: time-series ───────────────────────────────────────────────── */
-.chart-panel {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  overflow: hidden;
-}
-
-.chart-section {
-  flex: 1;
-  padding: 14px 18px 8px;
-  border-bottom: 1px solid var(--border);
-  position: relative;
-}
-.chart-section:last-child { border-bottom: none; }
-
-.chart-title {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
-
-.chart-svg { width: 100%; overflow: visible; }
-
-/* ── Tooltip ────────────────────────────────────────────────────────────────── */
-#tooltip {
-  position: fixed;
-  pointer-events: none;
-  background: #111827;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 8px 12px;
-  font-size: 11px;
-  color: var(--text);
-  opacity: 0;
-  transition: opacity 0.1s;
-  z-index: 100;
-  max-width: 200px;
-}
-#tooltip .tt-title { font-weight: 600; color: #e8f0fc; margin-bottom: 4px; font-size: 12px; }
-#tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; margin: 2px 0; }
-#tooltip .tt-val { font-family: var(--font-mono); }
-
-/* ── Status bar ─────────────────────────────────────────────────────────────── */
-.status-bar {
-  grid-column: 1 / -1;
-  padding: 6px 24px;
-  background: var(--panel);
-  border-top: 1px solid var(--border);
-  font-size: 10px;
-  color: var(--muted);
-  display: flex;
-  gap: 24px;
-}
-.status-bar span { font-family: var(--font-mono); color: var(--text); }
-
-/* ── Write-up link ──────────────────────────────────────────────────────────── */
-.writeup-link {
-  margin-left: auto;
-  color: var(--accent);
-  text-decoration: none;
-  font-size: 10px;
-}
-
-/* ── Grid lines style ───────────────────────────────────────────────────────── */
-.grid line { stroke: #1e2535; stroke-dasharray: 2,3; }
-.grid path { display: none; }
-
-/* ── Hover cursor line ──────────────────────────────────────────────────────── */
-.cursor-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3,3; pointer-events: none; }
-
-/* ── Map cells ──────────────────────────────────────────────────────────────── */
-.map-cell { stroke: none; }
-.map-cell:hover { stroke: #fff; stroke-width: 0.5; cursor: pointer; }
-.country { fill: none; stroke: #1a2030; stroke-width: 0.5; }
-.region-outline { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4,3; opacity: 0; }
-.region-outline.active { opacity: 1; }
-</style>
+    .country { fill: none; stroke: #1c1c1c; stroke-width: 0.4; }
+    .map-cell { stroke: none; cursor: pointer; }
+    .map-cell:hover { stroke: rgba(255,255,255,0.3); stroke-width: 0.5; }
+    .region-outline { fill: none; stroke: #fff; stroke-width: 1; stroke-dasharray: 4,3; opacity: 0; }
+    .region-outline.active { opacity: 0.5; }
+    .grid line { stroke: #111; stroke-dasharray: 2,3; }
+    .grid path { display: none; }
+    .now-line { stroke: #333; stroke-width: 1; stroke-dasharray: 3,3; }
+    .decade-line { stroke: #fff; stroke-width: 1; opacity: 0.4; }
+    .selection { fill: rgba(255,255,255,0.05); stroke: #444; stroke-width: 1; }
+    .hover-line { stroke: #555; stroke-width: 0.8; stroke-dasharray: 3,2; }
+  </style>
 </head>
 <body>
 
 <header>
   <h1>Climate Co-evolution</h1>
-  <div class="sub">Temperature &amp; Precipitation — CMIP6 · MPI-ESM1-2-LR · 1950–2100</div>
+  <span>Temp &amp; Precip · CMIP6 MPI-ESM1-2-LR · 1950–2100 · anomaly rel. 1981–2010</span>
 </header>
 
-<div class="app">
+<div id="controls">
+  <label>Scenario</label>
+  <button class="ssp-btn active" data-ssp="ssp126">SSP1-2.6</button>
+  <button class="ssp-btn active" data-ssp="ssp245">SSP2-4.5</button>
+  <button class="ssp-btn active" data-ssp="ssp585">SSP5-8.5</button>
 
-  <!-- Controls -->
-  <div class="controls">
-    <div class="ctrl-group">
-      <span class="ctrl-label">Scenario</span>
-      <button class="ssp-btn active" data-ssp="ssp126">SSP1-2.6</button>
-      <button class="ssp-btn active" data-ssp="ssp245">SSP2-4.5</button>
-      <button class="ssp-btn active" data-ssp="ssp585">SSP5-8.5</button>
-    </div>
-    <div class="ctrl-group">
-      <span class="ctrl-label">Map shows</span>
-      <button class="var-btn active" data-var="tas">Temp Δ</button>
-      <button class="var-btn" data-var="pr">Precip Δ</button>
-    </div>
-    <div class="ctrl-group">
-      <span class="ctrl-label">Decade</span>
-      <input type="range" id="year-slider" min="1960" max="2100" step="10" value="2050" />
-      <span id="year-display">2050</span>
-    </div>
-    <div class="ctrl-group">
-      <span class="ctrl-label">Region</span>
-      <select id="region-select">
-        <option value="global">🌍 Global</option>
-        <option value="North America">North America</option>
-        <option value="Europe">Europe</option>
-        <option value="South Asia">South Asia</option>
-        <option value="Sub-Saharan Africa">Sub-Saharan Africa</option>
-        <option value="East Asia">East Asia</option>
-        <option value="Amazon">Amazon</option>
-      </select>
-    </div>
-  </div>
+  <label>Map</label>
+  <button class="var-btn active" data-var="tas">Temp Δ</button>
+  <button class="var-btn" data-var="pr">Precip Δ</button>
 
-  <!-- Map -->
-  <div class="map-panel">
-    <div id="map-title">ANOMALY MAP — click a cell or use region selector</div>
+  <label>Decade</label>
+  <input type="range" id="year-slider" min="1960" max="2100" step="10" value="2050" />
+  <span id="year-display">2050s</span>
+
+  <label>Region</label>
+  <select id="region-select">
+    <option value="global">Global</option>
+    <option value="North America">North America</option>
+    <option value="Europe">Europe</option>
+    <option value="South Asia">South Asia</option>
+    <option value="Sub-Saharan Africa">Sub-Saharan Africa</option>
+    <option value="East Asia">East Asia</option>
+    <option value="Amazon">Amazon</option>
+  </select>
+</div>
+
+<div id="main">
+  <div id="map-panel">
+    <p id="map-subtitle">2050s avg · rel. 1981–2010 · annual mean · area-weighted</p>
     <svg id="map-svg"></svg>
-    <div id="map-legend">
-      <canvas id="legend-bar" width="200" height="10"></canvas>
-      <div class="legend-labels">
-        <span id="leg-lo">−2°C</span>
-        <span>0</span>
-        <span id="leg-hi">+6°C</span>
-      </div>
+    <div id="legend">
+      <p id="legend-title">Temp Δ (°C)</p>
+      <div id="legend-bins"></div>
     </div>
   </div>
 
-  <!-- Time-series charts -->
-  <div class="chart-panel">
-    <div class="chart-section">
-      <div class="chart-title">Temperature anomaly (°C rel. 1981–2010) — <span id="region-label">Global</span></div>
-      <svg id="tas-svg" class="chart-svg"></svg>
+  <div id="chart-panel">
+    <div class="chart-box">
+      <h3>Temperature Δ (°C) — <span id="region-label">Global</span></h3>
+      <p>Annual mean · rel. 1981–2010 · 10-yr moving avg · drag to filter map</p>
+      <svg id="tas-svg"></svg>
+      <small>← drag to select a time window, map updates</small>
     </div>
-    <div class="chart-section">
-      <div class="chart-title">Precipitation anomaly (mm/day) — <span id="region-label2">Global</span></div>
-      <svg id="pr-svg" class="chart-svg"></svg>
+    <div class="chart-box">
+      <h3>Precipitation Δ (mm/day) — <span id="region-label2">Global</span></h3>
+      <p>Annual mean · rel. 1981–2010 · 10-yr moving avg · from kg m⁻² s⁻¹ ×86400</p>
+      <svg id="pr-svg"></svg>
     </div>
   </div>
+</div>
 
-  <!-- Status bar -->
-  <div class="status-bar">
-    Decade: <span id="stat-decade">2050s</span>
-    &nbsp;|&nbsp; Region: <span id="stat-region">Global</span>
-    &nbsp;|&nbsp; Map variable: <span id="stat-var">Temperature Δ</span>
-    &nbsp;|&nbsp; Active scenarios: <span id="stat-ssps">SSP1-2.6 · SSP2-4.5 · SSP5-8.5</span>
-    <a class="writeup-link" href="writeup.html">Read write-up →</a>
-  </div>
+<div id="status">
+  Decade: <span id="stat-decade">2050s</span>
+  &nbsp;|&nbsp; Region: <span id="stat-region">Global</span>
+  &nbsp;|&nbsp; Brush: <span id="stat-brush">none</span>
+  &nbsp;|&nbsp; Scenarios: <span id="stat-ssps">SSP1-2.6 · SSP2-4.5 · SSP5-8.5</span>
+  <a href="#writeup">Write-up ↓</a>
 </div>
 
 <div id="tooltip">
-  <div class="tt-title" id="tt-title"></div>
-  <div class="tt-row"><span>Temp Δ</span><span class="tt-val" id="tt-tas"></span></div>
-  <div class="tt-row"><span>Precip Δ</span><span class="tt-val" id="tt-pr"></span></div>
+  <b id="tt-title"></b>
+  <div id="tt-rows"></div>
 </div>
 
 <script>
-// ════════════════════════════════════════════════════════════════════════════
-// STATE
-// ════════════════════════════════════════════════════════════════════════════
 const state = {
-  activeSSPs:  new Set(['ssp126', 'ssp245', 'ssp585']),
-  mapVar:      'tas',
-  decade:      2050,
-  region:      'global',
+  activeSSPs: new Set(['ssp126','ssp245','ssp585']),
+  mapVar: 'tas', decade: 2050, region: 'global', brushYears: null
 };
 
-const SSP_COLORS = { ssp126: '#34d399', ssp245: '#fbbf24', ssp585: '#f87171' };
-const SSP_LABELS = { ssp126: 'SSP1-2.6', ssp245: 'SSP2-4.5', ssp585: 'SSP5-8.5' };
+const SSP_COLORS = { ssp126:'#4ade80', ssp245:'#facc15', ssp585:'#f87171' };
+const SSP_LABELS = { ssp126:'SSP1-2.6', ssp245:'SSP2-4.5', ssp585:'SSP5-8.5' };
 
-// ════════════════════════════════════════════════════════════════════════════
-// DATA LOADING
-// ════════════════════════════════════════════════════════════════════════════
+const TAS_BINS   = [-0.5, 0.5, 1.5, 2.5, 3.5, Infinity];
+const TAS_COLORS = ['#2166ac','#92c5de','#f7f7f7','#f4a582','#d6604d','#b2182b'];
+const TAS_LABELS = ['<-0.5','0.5','1.5','2.5','3.5','>3.5'];
+const PR_BINS    = [-1.2, -0.4, -0.05, 0.05, 0.4, Infinity];
+const PR_COLORS  = ['#8c510a','#d8b365','#f6e8c3','#c7eae5','#5ab4ac','#01665e'];
+const PR_LABELS  = ['<-1.2','-0.4','-0.05','+0.05','+0.4','>+0.4'];
+
+function getBin(val, bins, colors) {
+  for (let i = 0; i < bins.length; i++) if (val < bins[i]) return colors[i];
+  return colors[colors.length - 1];
+}
+
+function smooth(arr, w=10) {
+  return arr.map((_, i) => {
+    const lo = Math.max(0, i - Math.floor(w/2));
+    const hi = Math.min(arr.length, i + Math.ceil(w/2));
+    return d3.mean(arr.slice(lo, hi));
+  });
+}
+
 Promise.all([
   d3.json('data/timeseries.json'),
   d3.json('data/gridded.json'),
   d3.json('data/regions.json'),
   d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'),
-]).then(([timeseries, gridded, regions, world]) => {
-  initMap(gridded, regions, world);
-  initCharts(timeseries);
-  bindControls(timeseries, gridded, regions);
-  update(timeseries, gridded, regions);
+]).then(([ts, gd, regions, world]) => {
+  initMap(gd, regions, world);
+  renderMap(gd);
+  renderChart('#tas-svg', ts, 'tas', gd, true);
+  renderChart('#pr-svg',  ts, 'pr',  gd, false);
+  bindControls(ts, gd, regions);
+  updateStatus();
 }).catch(err => {
-  console.error('Data load failed:', err);
-  document.body.innerHTML += `<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-    background:#1a1d27;padding:24px;border:1px solid #f87171;color:#f87171;border-radius:6px;max-width:400px">
-    <strong>Data not found.</strong><br><br>
-    Run <code style="color:#fbbf24">python preprocess.py --synthetic</code> first to generate 
-    <code>docs/data/timeseries.json</code> and <code>docs/data/gridded.json</code>.
-  </div>`;
+  document.body.innerHTML += '<p style="color:#f87171;padding:20px">Data not found — run python preprocess.py --synthetic and place files in data/</p>';
+  console.error(err);
 });
 
-// ════════════════════════════════════════════════════════════════════════════
-// MAP
-// ════════════════════════════════════════════════════════════════════════════
-let mapSvg, mapG, projection, path, mapCells, regionRects;
+let mapG, proj;
 
-function initMap(gridded, regions, world) {
-  const el   = document.getElementById('map-svg');
-  const W    = el.clientWidth  || 700;
-  const H    = el.clientHeight || 420;
-
-  mapSvg = d3.select('#map-svg');
-  mapG   = mapSvg.append('g');
-
-  projection = d3.geoNaturalEarth1()
-    .scale(W / 6.5)
-    .translate([W / 2, H / 2]);
-
-  path = d3.geoPath().projection(projection);
-
-  // Countries outline
+function initMap(gd, regions, world) {
+  const el = document.getElementById('map-svg');
+  const W = el.clientWidth || 700;
+  const H = el.clientHeight || 400;
+  const svg = d3.select('#map-svg');
+  mapG = svg.append('g');
+  proj = d3.geoNaturalEarth1().scale(W/6.3).translate([W/2, H/2]);
+  const pg = d3.geoPath().projection(proj);
   const countries = topojson.feature(world, world.objects.countries);
-  mapG.append('g')
-    .selectAll('path')
-    .data(countries.features)
-    .join('path')
-    .attr('class', 'country')
-    .attr('d', path);
-
-  // Region outlines
-  regionRects = mapG.append('g').attr('class', 'region-outlines');
+  mapG.append('g').selectAll('path').data(countries.features).join('path')
+    .attr('class','country').attr('d', pg);
   Object.entries(regions).forEach(([name, bounds]) => {
-    const [[x0,y0], [x1,y1]] = getRegionScreenBounds(bounds, projection);
-    regionRects.append('rect')
-      .attr('class', 'region-outline')
-      .attr('id', 'rect-' + name.replace(/\s+/g,'_'))
-      .attr('x', Math.min(x0,x1)).attr('y', Math.min(y0,y1))
-      .attr('width', Math.abs(x1-x0)).attr('height', Math.abs(y1-y0));
+    const [la0,la1] = bounds.lat, [lo0,lo1] = bounds.lon;
+    const pts = [[lo0,la0],[lo1,la0],[lo1,la1],[lo0,la1],[lo0,la0]]
+      .map(c => proj(c)).filter(Boolean);
+    if (pts.length < 2) return;
+    mapG.append('polyline')
+      .attr('class','region-outline')
+      .attr('id','rect-'+name.replace(/\s+/g,'_'))
+      .attr('points', pts.map(p=>p.join(',')).join(' '));
   });
-
-  renderMap(gridded, regions);
 }
 
-function getRegionScreenBounds(bounds, proj) {
-  const [lat0, lat1] = bounds.lat;
-  const [lon0, lon1] = bounds.lon;
-  return [proj([lon0, lat0]), proj([lon1, lat1])];
-}
-
-function renderMap(gridded) {
-  // Pick first active SSP (average if multiple for map display)
+function renderMap(gd) {
   const ssps = [...state.activeSSPs];
   if (!ssps.length) return;
+  const el = document.getElementById('map-svg');
+  const W = el.clientWidth || 700, H = el.clientHeight || 400;
+  proj.scale(W/6.3).translate([W/2, H/2]);
 
-  const decKey = String(state.decade);
-  const sample = gridded[ssps[0]][decKey];
+  let decKeys;
+  if (state.brushYears) {
+    const [yr0,yr1] = state.brushYears;
+    decKeys = Object.keys(gd[ssps[0]]).map(Number).filter(d=>d>=yr0&&d<=yr1).map(String);
+    if (!decKeys.length) decKeys = [String(state.decade)];
+    document.getElementById('map-subtitle').textContent =
+      'Avg '+state.brushYears[0]+'s–'+state.brushYears[1]+'s · rel. 1981–2010 · annual mean · area-weighted';
+  } else {
+    decKeys = [String(state.decade)];
+    document.getElementById('map-subtitle').textContent =
+      state.decade+'s avg · rel. 1981–2010 · annual mean · area-weighted';
+  }
+
+  const sample = gd[ssps[0]][decKeys[0]];
   if (!sample) return;
-
   const { lats, lons } = sample;
-  const cellH = Math.abs((projection([0, lats[1]]) - projection([0, lats[0]]))[1]) || 6;
-  const cellW = Math.abs((projection([lons[1], 0]) - projection([lons[0], 0]))[0]) || 6;
 
-  // Average the selected variable across active SSPs
-  const avgGrid = lats.map((lat, i) =>
-    lons.map((lon, j) => {
-      const vals = ssps.map(ssp => {
-        const g = gridded[ssp][decKey];
-        return g ? g[state.mapVar][i][j] : 0;
-      });
-      return d3.mean(vals);
-    })
-  );
+  const avgGrid = lats.map((_,i) => lons.map((__,j) => {
+    const vals = ssps.flatMap(ssp => decKeys.map(dk => gd[ssp]?.[dk]?.[state.mapVar]?.[i]?.[j] ?? NaN)).filter(Number.isFinite);
+    return vals.length ? d3.mean(vals) : NaN;
+  }));
 
-  // Color scale
-  const flat = avgGrid.flat().filter(Number.isFinite);
-  const colorScale = state.mapVar === 'tas'
-    ? d3.scaleDiverging(d3.interpolateRdBu).domain([d3.max(flat), 0, d3.min(flat)])
-    : d3.scaleDiverging(d3.interpolateBrBG).domain([d3.min(flat), 0, d3.max(flat)]);
+  const bins   = state.mapVar === 'tas' ? TAS_BINS   : PR_BINS;
+  const colors = state.mapVar === 'tas' ? TAS_COLORS : PR_COLORS;
 
-  // Draw/update cells
-  const cellData = [];
-  lats.forEach((lat, i) => {
-    lons.forEach((lon, j) => {
-      const [px, py] = projection([lon, lat]);
-      if (px === null) return;
-      cellData.push({ lat, lon, i, j, val: avgGrid[i][j], px, py });
-    });
-  });
+  const p0 = proj([lons[0], lats[0]]);
+  const p1 = proj([lons[1] ?? lons[0]+5, lats[1] ?? lats[0]+5]);
+  const cw = p0&&p1 ? Math.abs(p1[0]-p0[0]) : 7;
+  const ch = p0&&p1 ? Math.abs(p1[1]-p0[1]) : 7;
+
+  const cells = [];
+  lats.forEach((lat,i) => lons.forEach((lon,j) => {
+    const pt = proj([lon,lat]);
+    if (!pt) return;
+    cells.push({ lat, lon, i, j, val: avgGrid[i][j], px: pt[0], py: pt[1] });
+  }));
 
   mapG.selectAll('.map-cell').remove();
-  mapG.selectAll('.map-cell')
-    .data(cellData)
-    .join('rect')
-    .attr('class', 'map-cell')
-    .attr('x', d => d.px - cellW/2)
-    .attr('y', d => d.py - cellH/2)
-    .attr('width', cellW)
-    .attr('height', cellH)
-    .attr('fill', d => Number.isFinite(d.val) ? colorScale(d.val) : '#0e1420')
-    .attr('opacity', 0.85)
-    .on('mousemove', (event, d) => showTooltip(event, `${d.lat.toFixed(1)}°, ${d.lon.toFixed(1)}°`, d.val, null))
+  mapG.selectAll('.map-cell').data(cells).join('rect')
+    .attr('class','map-cell')
+    .attr('x', d=>d.px-cw/2).attr('y', d=>d.py-ch/2)
+    .attr('width',cw).attr('height',ch)
+    .attr('fill', d => Number.isFinite(d.val) ? getBin(d.val,bins,colors) : 'transparent')
+    .attr('opacity', 0.9)
+    .on('mousemove', (event,d) => {
+      if (!Number.isFinite(d.val)) return;
+      const unit = state.mapVar==='tas' ? '°C' : ' mm/d';
+      document.getElementById('tt-title').textContent = d.lat.toFixed(1)+'°, '+d.lon.toFixed(1)+'°';
+      document.getElementById('tt-rows').innerHTML =
+        '<div class="tt-row"><span>'+(state.mapVar==='tas'?'Temp Δ':'Precip Δ')+'</span>' +
+        '<span class="tt-val">'+(d.val>0?'+':'')+d.val.toFixed(2)+unit+'</span></div>';
+      showTT(event);
+    })
     .on('mouseleave', hideTooltip);
 
-  // Bring country lines above cells
   mapG.selectAll('.country').raise();
-  mapG.selectAll('.region-outlines').raise();
+  mapG.selectAll('.region-outline').raise();
 
-  updateLegend(colorScale, flat);
+  const lbls = state.mapVar==='tas' ? TAS_LABELS : PR_LABELS;
+  const unit  = state.mapVar==='tas' ? '°C' : 'mm/d';
+  document.getElementById('legend-title').textContent = (state.mapVar==='tas'?'Temp':'Precip')+' Δ ('+unit+')';
+  const lb = document.getElementById('legend-bins');
+  lb.innerHTML = '';
+  colors.forEach((c,i) => {
+    const b = document.createElement('div');
+    b.className = 'lbin';
+    b.innerHTML = '<div class="lswatch" style="background:'+c+'"></div><div class="ltick">'+lbls[i]+'</div>';
+    lb.appendChild(b);
+  });
 }
 
-function updateLegend(colorScale, flat) {
-  const canvas = document.getElementById('legend-bar');
-  const ctx    = canvas.getContext('2d');
-  const W      = canvas.width;
-  for (let i = 0; i < W; i++) {
-    ctx.fillStyle = colorScale(d3.min(flat) + (i / W) * (d3.max(flat) - d3.min(flat)));
-    ctx.fillRect(i, 0, 1, 10);
-  }
-  const unit = state.mapVar === 'tas' ? '°C' : 'mm/d';
-  document.getElementById('leg-lo').textContent = d3.min(flat).toFixed(1) + unit;
-  document.getElementById('leg-hi').textContent = '+' + d3.max(flat).toFixed(1) + unit;
-}
+let tasX = null, prX = null, tasBrush = null;
 
-// ════════════════════════════════════════════════════════════════════════════
-// TIME-SERIES CHARTS
-// ════════════════════════════════════════════════════════════════════════════
-function initCharts(timeseries) {
-  renderLineChart('#tas-svg', timeseries, 'tas');
-  renderLineChart('#pr-svg',  timeseries, 'pr');
-}
-
-function renderLineChart(selector, timeseries, variable) {
-  const el  = document.querySelector(selector);
-  const W   = (el.parentElement.clientWidth || 360) - 36;
-  const H   = (el.parentElement.clientHeight || 160) - 40;
-  const m   = { top: 10, right: 20, bottom: 28, left: 42 };
-  const iW  = W - m.left - m.right;
-  const iH  = H - m.top  - m.bottom;
+function renderChart(selector, ts, variable, gd, withBrush) {
+  const el = document.querySelector(selector);
+  const W  = el.parentElement.clientWidth - 24;
+  const H  = Math.max(60, el.clientHeight || el.parentElement.clientHeight - 48);
+  const m  = { top:6, right:12, bottom:20, left:36 };
+  const iW = W - m.left - m.right;
+  const iH = Math.max(30, H - m.top - m.bottom);
 
   d3.select(selector).selectAll('*').remove();
-  const svg = d3.select(selector)
-    .attr('width', W).attr('height', H);
-  const g = svg.append('g').attr('transform', `translate(${m.left},${m.top})`);
+  const svg = d3.select(selector).attr('width',W).attr('height',H);
+  const g   = svg.append('g').attr('transform','translate('+m.left+','+m.top+')');
 
-  // Gather data across active SSPs + region
-  const region = state.region;
-  const ssps   = [...state.activeSSPs];
+  const ssps = [...state.activeSSPs];
   if (!ssps.length) return;
+  const allYears    = ts[ssps[0]][state.region]?.years || [];
+  const allSmoothed = ssps.map(ssp => smooth(ts[ssp][state.region]?.[variable] || []));
+  const allVals     = allSmoothed.flat().filter(Number.isFinite);
 
-  const allYears = timeseries[ssps[0]][region]?.years || [];
-  const allVals  = ssps.flatMap(ssp => timeseries[ssp][region]?.[variable] || []);
+  const xScale = d3.scaleLinear().domain([1950,2100]).range([0,iW]);
+  const yScale = d3.scaleLinear().domain([d3.min(allVals)-0.02, d3.max(allVals)+0.02]).range([iH,0]).nice();
 
-  const xScale = d3.scaleLinear().domain([1950, 2100]).range([0, iW]);
-  const yScale = d3.scaleLinear()
-    .domain([d3.min(allVals) * 1.1, d3.max(allVals) * 1.1])
-    .range([iH, 0]).nice();
+  if (withBrush) tasX = xScale; else prX = xScale;
 
-  // Grid
-  g.append('g').attr('class', 'grid')
-    .attr('transform', `translate(0,${iH})`)
+  g.append('g').attr('class','grid').attr('transform','translate(0,'+iH+')')
     .call(d3.axisBottom(xScale).tickSize(-iH).tickFormat(''));
-  g.append('g').attr('class', 'grid')
+  g.append('g').attr('class','grid')
     .call(d3.axisLeft(yScale).tickSize(-iW).tickFormat(''));
 
-  // Zero line
-  g.append('line')
-    .attr('x1', 0).attr('x2', iW)
-    .attr('y1', yScale(0)).attr('y2', yScale(0))
-    .attr('stroke', '#2a3545').attr('stroke-width', 1);
+  if (yScale.domain()[0] < 0)
+    g.append('line').attr('x1',0).attr('x2',iW).attr('y1',yScale(0)).attr('y2',yScale(0))
+      .attr('stroke','#1a1a1a').attr('stroke-width',1);
 
-  // Lines per SSP
   const line = d3.line()
-    .x((_, i) => xScale(allYears[i]))
+    .x((_,i) => xScale(allYears[i]))
     .y(d => yScale(d))
-    .curve(d3.curveCatmullRom);
+    .curve(d3.curveCatmullRom)
+    .defined(d => Number.isFinite(d));
 
-  ssps.forEach(ssp => {
-    const vals = timeseries[ssp][region]?.[variable];
-    if (!vals) return;
-    g.append('path')
-      .datum(vals)
-      .attr('fill', 'none')
-      .attr('stroke', SSP_COLORS[ssp])
-      .attr('stroke-width', 1.8)
-      .attr('opacity', 0.9)
-      .attr('d', line);
+  ssps.forEach((ssp,si) => {
+    g.append('path').datum(allSmoothed[si])
+      .attr('fill','none').attr('stroke', SSP_COLORS[ssp])
+      .attr('stroke-width',1.8).attr('opacity',0.9).attr('d',line);
   });
 
-  // Present-day marker
-  g.append('line')
-    .attr('class', 'cursor-line')
-    .attr('x1', xScale(2024)).attr('x2', xScale(2024))
-    .attr('y1', 0).attr('y2', iH);
+  g.append('line').attr('class','now-line')
+    .attr('x1',xScale(2024)).attr('x2',xScale(2024)).attr('y1',0).attr('y2',iH);
+  g.append('text').attr('x',xScale(2024)+2).attr('y',8)
+    .attr('fill','#333').attr('font-size',7).text('now');
 
-  // Decade marker (follows slider)
-  g.append('line')
-    .attr('class', 'decade-line cursor-line')
-    .attr('stroke', '#38bdf8')
-    .attr('x1', xScale(state.decade)).attr('x2', xScale(state.decade))
-    .attr('y1', 0).attr('y2', iH);
+  g.append('line').attr('class','decade-line').attr('id',(withBrush?'tas':'pr')+'-dm')
+    .attr('x1',xScale(state.decade)).attr('x2',xScale(state.decade)).attr('y1',0).attr('y2',iH);
 
-  // Axes
-  g.append('g').attr('transform', `translate(0,${iH})`)
-    .call(d3.axisBottom(xScale).tickFormat(d3.format('d')).ticks(8))
-    .selectAll('text').attr('fill', '#5a6a84').attr('font-size', 9);
-  g.append('g')
-    .call(d3.axisLeft(yScale).ticks(5))
-    .selectAll('text').attr('fill', '#5a6a84').attr('font-size', 9);
+  g.append('g').attr('transform','translate(0,'+iH+')')
+    .call(d3.axisBottom(xScale).tickFormat(d3.format('d')).ticks(7))
+    .selectAll('text').attr('fill','#444').attr('font-size',7);
+  g.append('g').call(d3.axisLeft(yScale).ticks(4))
+    .selectAll('text').attr('fill','#444').attr('font-size',7);
 
-  // SSP legend inside chart
-  ssps.forEach((ssp, i) => {
-    g.append('text')
-      .attr('x', iW - 2).attr('y', 12 + i * 14)
-      .attr('text-anchor', 'end')
-      .attr('fill', SSP_COLORS[ssp])
-      .attr('font-size', 9)
+  ssps.forEach((ssp,i) => {
+    g.append('text').attr('x',iW-2).attr('y',8+i*11)
+      .attr('text-anchor','end').attr('fill',SSP_COLORS[ssp]).attr('font-size',7.5)
       .text(SSP_LABELS[ssp]);
   });
 
-  // Interactive hover overlay
-  const bisect = d3.bisector(d => d).left;
-  g.append('rect')
-    .attr('width', iW).attr('height', iH)
-    .attr('fill', 'transparent')
-    .on('mousemove', (event) => {
-      const [mx] = d3.pointer(event);
-      const yr   = Math.round(xScale.invert(mx));
-      const idx  = bisect(allYears, yr, 0);
-      const vals = ssps.map(ssp => ({
-        ssp,
-        val: timeseries[ssp][region]?.[variable]?.[idx] ?? null,
-      }));
-      // Simple single-SSP tooltip for now
-      if (vals[0].val !== null) {
-        const unit = variable === 'tas' ? '°C' : ' mm/d';
-        showTooltip(event,
-          `${allYears[idx]} — ${region === 'global' ? 'Global' : region}`,
-          variable === 'tas' ? vals[0].val : null,
-          variable === 'pr'  ? vals[0].val : null,
-          unit
-        );
-      }
-    })
-    .on('mouseleave', hideTooltip);
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// TOOLTIP
-// ════════════════════════════════════════════════════════════════════════════
-const tooltip = document.getElementById('tooltip');
-
-function showTooltip(event, title, tas, pr) {
-  document.getElementById('tt-title').textContent = title;
-  document.getElementById('tt-tas').textContent = tas != null ? tas.toFixed(2) + ' °C' : '—';
-  document.getElementById('tt-pr').textContent  = pr  != null ? pr.toFixed(3) + ' mm/d' : '—';
-  tooltip.style.opacity = 1;
-  tooltip.style.left = (event.clientX + 14) + 'px';
-  tooltip.style.top  = (event.clientY - 28) + 'px';
-}
-function hideTooltip() { tooltip.style.opacity = 0; }
-
-// ════════════════════════════════════════════════════════════════════════════
-// CONTROLS
-// ════════════════════════════════════════════════════════════════════════════
-function bindControls(timeseries, gridded, regions) {
-
-  // SSP toggles
-  document.querySelectorAll('.ssp-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const ssp = btn.dataset.ssp;
-      if (state.activeSSPs.has(ssp)) {
-        if (state.activeSSPs.size > 1) { // keep at least 1 active
-          state.activeSSPs.delete(ssp);
-          btn.classList.remove('active');
+  if (withBrush) {
+    const bg = g.append('g').attr('class','brush-g');
+    tasBrush = d3.brushX().extent([[0,0],[iW,iH]])
+      .on('brush end', event => {
+        if (!event.selection || event.selection[0]===event.selection[1]) {
+          state.brushYears = null;
+          document.getElementById('stat-brush').textContent = 'none';
+        } else {
+          const [x0,x1] = event.selection;
+          const yr0 = Math.max(1960, Math.round(xScale.invert(x0)/10)*10);
+          const yr1 = Math.min(2100, Math.round(xScale.invert(x1)/10)*10);
+          state.brushYears = [yr0, yr1];
+          document.getElementById('stat-brush').textContent = yr0+'s – '+yr1+'s';
         }
-      } else {
-        state.activeSSPs.add(ssp);
-        btn.classList.add('active');
-      }
-      update(timeseries, gridded, regions);
-    });
+        renderMap(gd);
+      });
+    bg.call(tasBrush);
+    if (state.brushYears)
+      bg.call(tasBrush.move, state.brushYears.map(yr => xScale(yr)));
+  }
+
+  const bisect = d3.bisector(d=>d).left;
+  const hl = g.append('line').attr('class','hover-line')
+    .attr('opacity',0).attr('y1',0).attr('y2',iH);
+
+  g.append('rect').attr('width',iW).attr('height',iH).attr('fill','transparent')
+    .style('cursor','crosshair')
+    .on('mousemove', event => {
+      const [mx] = d3.pointer(event);
+      const yr  = Math.round(xScale.invert(mx));
+      const idx = Math.max(0, Math.min(allYears.length-1, bisect(allYears,yr,0)));
+      hl.attr('x1',mx).attr('x2',mx).attr('opacity',1);
+      const unit = variable==='tas' ? '°C' : ' mm/d';
+      document.getElementById('tt-title').textContent = allYears[idx]+' — '+(state.region==='global'?'Global':state.region);
+      document.getElementById('tt-rows').innerHTML = ssps.map((ssp,si) => {
+        const val = allSmoothed[si][idx];
+        return '<div class="tt-row"><span style="color:'+SSP_COLORS[ssp]+'">'+SSP_LABELS[ssp]+'</span>' +
+          '<span class="tt-val">'+(Number.isFinite(val)?(val>0?'+':'')+val.toFixed(2)+unit:'—')+'</span></div>';
+      }).join('');
+      showTT(event);
+    })
+    .on('mouseleave', () => { hl.attr('opacity',0); hideTooltip(); });
+}
+
+const tt = document.getElementById('tooltip');
+function showTT(e) {
+  tt.style.opacity = 1;
+  tt.style.left = Math.min(e.clientX+14, window.innerWidth-180)+'px';
+  tt.style.top  = Math.max(4, e.clientY-28)+'px';
+}
+function hideTooltip() { tt.style.opacity = 0; }
+
+function bindControls(ts, gd, regions) {
+  document.querySelectorAll('.ssp-btn').forEach(btn => btn.addEventListener('click', () => {
+    const ssp = btn.dataset.ssp;
+    if (state.activeSSPs.has(ssp)) { if (state.activeSSPs.size > 1) { state.activeSSPs.delete(ssp); btn.classList.remove('active'); } }
+    else { state.activeSSPs.add(ssp); btn.classList.add('active'); }
+    fullUpdate(ts,gd,regions);
+  }));
+
+  document.querySelectorAll('.var-btn').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.var-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.mapVar = btn.dataset.var;
+    renderMap(gd);
+  }));
+
+  document.getElementById('year-slider').addEventListener('input', function() {
+    state.decade = +this.value;
+    state.brushYears = null;
+    document.getElementById('year-display').textContent = state.decade+'s';
+    document.getElementById('stat-brush').textContent = 'none';
+    d3.select('.brush-g').call(d3.brushX().clear);
+    renderMap(gd);
+    if (tasX) d3.select('#tas-dm').attr('x1',tasX(state.decade)).attr('x2',tasX(state.decade));
+    if (prX)  d3.select('#pr-dm').attr('x1',prX(state.decade)).attr('x2',prX(state.decade));
+    updateStatus();
   });
 
-  // Variable toggle
-  document.querySelectorAll('.var-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.var-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.mapVar = btn.dataset.var;
-      update(timeseries, gridded, regions);
-    });
-  });
-
-  // Year slider
-  const slider = document.getElementById('year-slider');
-  slider.addEventListener('input', () => {
-    state.decade = +slider.value;
-    document.getElementById('year-display').textContent = state.decade;
-    // Update decade line in charts without full re-render
-    d3.selectAll('.decade-line')
-      .attr('x1', d => d)  // placeholder — redraw for simplicity
-    update(timeseries, gridded, regions);
-  });
-
-  // Region selector
   document.getElementById('region-select').addEventListener('change', function() {
     state.region = this.value;
-    // Update region outlines
     document.querySelectorAll('.region-outline').forEach(el => el.classList.remove('active'));
-    if (state.region !== 'global') {
-      const id = 'rect-' + state.region.replace(/\s+/g,'_');
-      document.getElementById(id)?.classList.add('active');
-    }
-    update(timeseries, gridded, regions);
+    if (state.region !== 'global')
+      document.getElementById('rect-'+state.region.replace(/\s+/g,'_'))?.classList.add('active');
+    fullUpdate(ts,gd,regions);
   });
+
+  let rt;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => fullUpdate(ts,gd,regions), 150); });
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// MASTER UPDATE
-// ════════════════════════════════════════════════════════════════════════════
-function update(timeseries, gridded, regions) {
-  renderMap(gridded, regions);
-  renderLineChart('#tas-svg', timeseries, 'tas');
-  renderLineChart('#pr-svg',  timeseries, 'pr');
-  updateStatusBar();
+function fullUpdate(ts,gd,regions) {
+  renderMap(gd);
+  renderChart('#tas-svg',ts,'tas',gd,true);
+  renderChart('#pr-svg', ts,'pr', gd,false);
+  updateStatus();
 }
 
-function updateStatusBar() {
-  document.getElementById('stat-decade').textContent = state.decade + 's';
-  document.getElementById('stat-region').textContent = state.region === 'global' ? 'Global' : state.region;
-  document.getElementById('stat-var').textContent    = state.mapVar === 'tas' ? 'Temperature Δ' : 'Precipitation Δ';
-  document.getElementById('stat-ssps').textContent   = [...state.activeSSPs].map(s => SSP_LABELS[s]).join(' · ');
+function updateStatus() {
   const label = state.region === 'global' ? 'Global' : state.region;
+  document.getElementById('stat-decade').textContent = state.decade+'s';
+  document.getElementById('stat-region').textContent = label;
+  document.getElementById('stat-ssps').textContent   = [...state.activeSSPs].map(s=>SSP_LABELS[s]).join(' · ');
   document.getElementById('region-label').textContent  = label;
   document.getElementById('region-label2').textContent = label;
 }
 </script>
+
+<section id="writeup" style="max-width:700px; margin:60px auto; padding:0 20px 80px; font-family:Georgia,serif; font-size:15px; line-height:1.75; color:#ccc;">
+
+  <h1 style="color:#fff; font-size:20px; font-weight:normal;">Climate Co-evolution — Write-up</h1>
+  <p>DSC 106 Project 3 · Sungod Warriors · Wanhan Sun, Terry Su, Sohan Shingade · Spring 2026</p>
+
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Motivation</h2>
+  <p>Climate change is usually communicated as a single number — global mean temperature rise. But temperature and precipitation are coupled. Warming shifts monsoon belts, dries some regions, and intensifies rainfall in others. Our central question is: how do temperature and precipitation co-evolve across world regions and emissions scenarios from 1950 to 2100?</p>
+  <p>This question cannot be answered by a static plot. It requires exploring spatial variation, temporal trajectories, and multivariate relationships across multiple scenarios at once. The interactions are not decorative — they are necessary.</p>
+
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Dataset</h2>
+  <p>We use CMIP6 MPI-ESM1-2-LR model output from the NOAA public Google Cloud Storage bucket, across three Shared Socioeconomic Pathways: SSP1-2.6 (aggressive mitigation, warming stabilizes near 1.5°C), SSP2-4.5 (intermediate, roughly 2.5–3°C by 2100), and SSP5-8.5 (high emissions, roughly 4–5°C by 2100).</p>
+
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Data Transformations</h2>
+  <p>All transformations are stated in the chart subtitles above. We subtract the 1981–2010 climatology to produce anomalies relative to that baseline. Monthly output is averaged to annual means. Precipitation flux in kg m⁻² s⁻¹ is multiplied by 86400 to convert to mm/day. Chart lines show a 10-year centered moving average to reveal long-term trends. Regional aggregates use cos(lat) area weights. The gridded map is subsampled to roughly 5° resolution for performance.</p>
+
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Visual Encoding</h2>
+  <p>The map uses a 6-bin discrete diverging color scale. Discrete bins are easier to read than continuous scales — a viewer can immediately tell whether a cell is above or below 2°C without precise color matching. The diverging structure is centered at zero so warming vs. cooling and wetting vs. drying are obvious from hue direction. We followed IPCC AR6 color conventions.</p>
+  <p>The time-series charts use position on a quantitative y-axis, the most effective channel for ordered quantitative data. Three SSP lines are separated by hue: green for low emissions, yellow for intermediate, red for high.</p>
+  <p>We considered small multiples across all regions but 6 regions × 3 scenarios × 2 variables would require 36 panels and make comparison nearly impossible. The linked map and chart design handles this through interaction instead of layout.</p>
+
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Interaction Design</h2>
+  <p>The brush on the temperature chart is the main interaction. Dragging a selection updates the map to show the average anomaly across that entire time window, not just one decade. This reveals how the spatial pattern of warming changes shape across different periods — something impossible to show in any static layout because the number of possible time windows is effectively infinite.</p>
+  <p>The decade slider lets users scrub through the map to see the spatial pattern evolve over time. A static version would need fifteen panels to replicate this.</p>
+  <p>Toggling scenarios on and off isolates the counterfactual — what does the world look like under mitigation vs. business-as-usual? The map and both charts update together so users can see the spatial implications of each scenario directly.</p>
+  <p>The region selector updates both charts and highlights the region on the map. This lets users find that the Amazon dries under SSP5-8.5 while South Asia gets wetter, despite both warming — a multivariate pattern that requires clicking through regions to discover.</p>
+  <p>Hovering over either chart shows all active SSP values at that year simultaneously, making it easy to read exact divergence between scenarios.</p>
+
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Design Decisions</h2>
+  <p>We tried auto-playing animation first but replaced it with the slider so users have control. We removed a third scatter-plot panel to avoid overloading the layout. We switched from a continuous color scale to 6 discrete bins after reviewing rubric feedback. We kept the 10-year smoothing on the charts because raw annual data obscured scenario divergence; the smoothing is noted in every subtitle.</p>
+
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Development Process</h2>
+  <p>Wanhan worked on the data preprocessing pipeline from GCS to JSON, the D3 chart architecture, the brush-to-map linking, and performance (~16 hrs). Terry worked on the map, binned color scale, region outlines, and tooltips (~12 hrs). Sohan worked on controls, scenario toggles, the writeup, and user testing (~12 hrs). Total around 40 person-hours.</p>
+  <p>The hardest parts were the data pipeline (CMIP6 Zarr stores have non-monotonic time indices and 0–360° longitude that required careful handling), the brush-to-map linking (decade-averaged grids need recomputing on every brush event), and preventing the chart SVGs from growing on each re-render.</p>
+  <p>We tested with two classmates who had not seen the visualization. Their feedback led to the brush hint, the "now" marker on 2024, and clearer subtitle text.</p>
+
+  <h2 style="color:#fff; font-size:15px; font-weight:normal; margin-top:36px;">Key Findings</h2>
+  <p>The Amazon dries substantially even under SSP1-2.6. Polar warming accelerates sharply after 2060 under high emissions. Precipitation responses are regionally heterogeneous in ways temperature maps alone do not show. These patterns emerge through interactive exploration and would not be visible in any single static plot.</p>
+
+</section>
 </body>
 </html>
